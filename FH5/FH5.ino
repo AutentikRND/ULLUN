@@ -141,12 +141,12 @@ void setup() {
   } else {
     geturl();
   }
-  if (!rtc.begin()) {
-    debugln("Couldn't find RTC");
-    while (1)
-      ;
-  }
-  rtc.adjust(DateTime(__DATE__, __TIME__));
+  // if (!rtc.begin()) {
+  //   debugln("Couldn't find RTC");
+  //   while (1)
+  //     ;
+  // }
+  //rtc.adjust(DateTime(__DATE__, __TIME__));
   if (!SPIFFS.begin(true)) {
     debugln("An Error has occurred while mounting SPIFFS");
     return;
@@ -160,30 +160,30 @@ void setup() {
   pinMode(R1, OUTPUT);
   pinMode(R2, OUTPUT);
   pinMode(R3, OUTPUT);
-  xTaskCreatePinnedToCore(
+  xTaskCreate(
     Task1code, /* Task function. */
     "Task1",   /* name of task. */
     10000,     /* Stack size of task */
     NULL,      /* parameter of the task */
     1,         /* priority of the task */
-    &Task1,    /* Task handle to keep track of created task */
-    0);        /* pin task to core 0 */
+    &Task1     /* Task handle to keep track of created task */
+  );           /* pin task to core 0 */
   //create a task that will be executed in the Task2code() function, with priority 1 and executed on core 1
-  xTaskCreatePinnedToCore(
+  xTaskCreate(
     Task2code, /* Task function. */
     "Task2",   /* name of task. */
     10000,     /* Stack size of task */
     NULL,      /* parameter of the task */
     1,         /* priority of the task */
-    &Task2,    /* Task handle to keep track of created task */
-    1);        /* pin task to core 1 */
+    &Task2     /* Task handle to keep track of created task */
+  );           /* pin task to core 1 */
 }
 
 void Task1code(void *pvParameters) {
-  debug("Task1 running on core ");
-  debugln(xPortGetCoreID());
-
   for (;;) {
+    debug("Task1 running on core ");
+    debugln(xPortGetCoreID());
+    long start = millis();
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillis1 >= 5100) {
       previousMillis1 = currentMillis;
@@ -237,36 +237,42 @@ void Task1code(void *pvParameters) {
       debug("kecepatanUdara=");
       debugln(kecepatanUdara);
     }
+    Serial.println("TASK 1 TAKE TIME = ");
+    Serial.println(millis() - start);
   }
 }
+
 void Task2code(void *pvParameters) {
-  debug("Task1 running on core ");
-  debugln(xPortGetCoreID());
+
 
   for (;;) {
-    DateTime now = rtc.now();
-    String jam = String(now.hour(), DEC);
-    String menit = String(now.minute(), DEC);
-    String waktu = jam + ":" + menit;
-    t4.setText(waktu.c_str());
-    Serial.write(0xff);
-    Serial.write(0xff);
-    Serial.write(0xff);
+    debug("Task2 running on core ");
+    debugln(xPortGetCoreID());
+    long start = millis();
+    //DateTime now = rtc.now();
+    //String jam = String(now.hour(), DEC);
+    //String menit = String(now.minute(), DEC);
+    //String waktu = jam + ":" + menit;
+    //t4.setText(waktu.c_str());
+    // Serial.write(0xff);
+    // Serial.write(0xff);
+    // Serial.write(0xff);
     //debug(now.month(), DEC);
-    debug("-");
+    //debug("-");
     //debug(now.year(), DEC);
-    debug("-");
-    debugln(daysOfTheWeek[now.dayOfTheWeek()]);
-    String bulan = String(now.month(), DEC);
-    String tanggal = String(now.dayOfTheWeek(), DEC);
-    String hari = String(daysOfTheWeek[now.dayOfTheWeek()]);
-    String tahun = String(now.year(), DEC);
-    String tanggalfull = hari + ", " + tanggal + "/" + bulan + "/" + tahun;
-    t5.setText(tanggalfull.c_str());
-    Serial.write(0xff);
-    Serial.write(0xff);
-    Serial.write(0xff);
-    yield();
+    //debug("-");
+    //debugln(daysOfTheWeek[now.dayOfTheWeek()]);
+    //String bulan = String(now.month(), DEC);
+    // String tanggal = String(now.dayOfTheWeek(), DEC);
+    // String hari = String(daysOfTheWeek[now.dayOfTheWeek()]);
+    // String tahun = String(now.year(), DEC);
+    // String tanggalfull = hari + ", " + tanggal + "/" + bulan + "/" + tahun;
+    // t5.setText(tanggalfull.c_str());
+    // Serial.write(0xff);
+    // Serial.write(0xff);
+    // Serial.write(0xff);
+    // yield();
+
     va0.getValue(&resetlamp);
     va1.getValue(&resethepa);
     h0.getValue(&power);
@@ -280,7 +286,6 @@ void Task2code(void *pvParameters) {
     bt0.getValue(&blow);
     bt1.getValue(&lampTL);
     bt2.getValue(&lamp);
-    //acd.setPower(power);
     debugln(power);
     if (lamp == 1)  //When pressed dual state button dual_state =1
     {
@@ -396,11 +401,12 @@ void Task2code(void *pvParameters) {
     } else if (lampTL == 0) {
       digitalWrite(R3, LOW);
     }
+    Serial.println("TASK 2 TAKE TIME = ");
+    Serial.println(millis() - start);
   }
 }
 
 void loop(void) {
-  delay(500);
 }
 
 String readFile(fs::FS &fs, const char *path) {
