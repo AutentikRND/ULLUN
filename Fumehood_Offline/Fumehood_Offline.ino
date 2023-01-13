@@ -19,14 +19,14 @@
 #include <FS.h>
 #include "SPIFFS.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #define endScreen
 #if DEBUG == 1
 #define debug(x) Serial.print(x)
 #define debugln(x) Serial.println(x)
 #else
 #define debug(x)
-#define debug(x)
+#define debugln(x)
 #endif
 
 RTC_DS3231 rtc;
@@ -47,7 +47,6 @@ float offsite1 = 1, offsite2 = 1;
 String suhu, kecepatanUdara;
 double windMS;
 float ZeroWind_V = 1.11;  // nilai ini yang di adjust
-String pausstring, pausstring1;
 
 NexVariable va0 = NexVariable(0, 16, "va0");
 NexVariable va1 = NexVariable(0, 17, "va1");
@@ -104,17 +103,16 @@ dimmerLamp acd(acdPin, zeroCrossPin);
 WiFiManager wifiManager;
 
 WiFiClient client;
-//
-////User ID
-//String userId = "c8879e6e-db31-44e4-905e-ee87f238076a";
-////ID Device
-//String idDevice = "8762ac22-0df1-4b90-a7b2-a0bcf5ca2614";
-//
-//
-////Email Account
-//String email = "talpha.autentik@gmail.com";
-////Email Password
-//String pass = "MMzSRt";
+
+//User ID
+String userId = "c8879e6e-db31-44e4-905e-ee87f238076a";
+//ID Device
+String idDevice = "8762ac22-0df1-4b90-a7b2-a0bcf5ca2614";
+
+//Email Account
+String email = "talpha.autentik@gmail.com";
+//Email Password
+String pass = "MMzSRt";
 
 //Parameter *parameter;
 String linkdiawan;
@@ -125,34 +123,19 @@ unsigned int startTime = millis();
 
 TaskHandle_t Task1;
 TaskHandle_t Task2;
+TaskHandle_t Task3;
 //Nama WiFi Device>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-//char node_ID[] = "PR00112-1";
+char node_ID[] = "PR00112-1";
 
 void setup() {
   Serial.begin(115200);
   nexInit(9600);
   acd.begin(NORMAL_MODE, ON);
-  //wifiManager.setConfigPortalTimeout(300);
-  //if (wifiManager.autoConnect(node_ID)) {
-  //String wifi = WiFi.SSID();
-  //    debugln(WiFi.localIP());
-  //  }
-  //  if (WiFi.status() != WL_CONNECTED) {
-  //
-  //  } else {
-  //    geturl();
-  //  }
-  // if (!rtc.begin()) {
-  //   debugln("Couldn't find RTC");
-  //   while (1)
-  //     ;
-  // }
-  //rtc.adjust(DateTime(__DATE__, __TIME__));
-    if (!SPIFFS.begin(true)) {
-      debugln("An Error has occurred while mounting SPIFFS");
-      return;
-    }
-    String datadaripaus = readFile(SPIFFS, "/datapaus.txt");
+  if (!SPIFFS.begin(true)) {
+    debugln("An Error has occurred while mounting SPIFFS");
+    return;
+  }
+  String datadaripaus = readFile(SPIFFS, "/datapaus.txt");
   dataPaus = atol(datadaripaus.c_str());
   String datadaripaus1 = readFile(SPIFFS, "/datapaus1.txt");
   dataPaus1 = atol(datadaripaus1.c_str());
@@ -178,6 +161,14 @@ void setup() {
     1,         /* priority of the task */
     &Task2     /* Task handle to keep track of created task */
   );           /* pin task to core 1 */
+  xTaskCreate(
+    Task3code, /* Task function. */
+    "Task3",   /* name of task. */
+    10000,     /* Stack size of task */
+    NULL,      /* parameter of the task */
+    1,         /* priority of the task */
+    &Task3     /* Task handle to keep track of created task */
+  );           /* pin task to core 1 */
 }
 
 void Task1code(void *pvParameters) {
@@ -185,61 +176,39 @@ void Task1code(void *pvParameters) {
     debug("Task1 running on core ");
     debugln(xPortGetCoreID());
     long start = millis();
-    unsigned long currentMillis = millis();
-    //    if (currentMillis - previousMillis1 >= 5100) {
-    //      previousMillis1 = currentMillis;
-    //      if (WiFi.status() != WL_CONNECTED) {
-    //        WiFi.disconnect();
-    //        WiFi.reconnect();
-    //      } else {
-    //        //geturl();
-    //        long rssi = WiFi.RSSI();
-    //        IPAddress myIP = WiFi.localIP();
-    //        char buf[20];
-    //        sprintf(buf, "%d.%d.%d.%d", myIP[0], myIP[1], myIP[2], myIP[3]);
-    //        t6.setText(buf);
-    //        qualwifi = 2 * (rssi + 100);
-    //        sendTofirebase(tempC, windMS);
-    //      }
-    //    }
-    if (currentMillis - previousMillis >= 2000) {
-      previousMillis = currentMillis;
-      int tempRerata = analogRead(TempPin);
-      for (int i = 0; i < 11; i++) {
-        tempRerata += analogRead(TempPin);
-        delay(10);
-      }
-      tempRerata /= 10;
-      debug("tempRerata=");
-      debugln(tempRerata);
-      float tempRawAD = (tempRerata * 3.3) / 4096;
-      float tempCraw = ((tempRawAD - 0.400) / .0195);
-      regresitemp = (a * tempCraw) + (b * (pow(tempCraw, 2))) + c;
-      tempC = (tempCraw + regresitemp) * offsite1;
-      suhu = String(tempC, 1);
-      t0.setText(suhu.c_str());
-      debug("tempC=");
-      debugln(tempC);
-
-      int windADunits = analogRead(OutPin);
-      float voltWind = (windADunits * 3.3) / 4096;
-      float adjustmentV = voltWind - ZeroWind_V;
-      if (adjustmentV < 0) {
-        adjustmentV = 0;
-      }
-      float tempPow = pow(tempC, 0.115);
-      float windMPH = pow(((adjustmentV / (3.038 * tempPow)) / 0.087), 3.009);  //rumus dari link kalibrasi
-      //float windMPH = pow((((float)windADunits - 264.0) / 85.6814), 3.36814);
-      float windMSraw = (windMPH * 0.44704);
-      regresiwind = (d * windMSraw) + (e * (pow(windMSraw, 2))) + f;
-      windMS = (windMSraw + regresiwind) * offsite2;
-      kecepatanUdara = String(windMS, 2);
-      t1.setText(kecepatanUdara.c_str());
-      debug("kecepatanUdara=");
-      debugln(kecepatanUdara);
+    int tempRerata = analogRead(TempPin);
+    for (int i = 0; i < 11; i++) {
+      tempRerata += analogRead(TempPin);
+      delay(10);
     }
+    tempRerata /= 10;
+    debug("tempRerata=");
+    debugln(tempRerata);
+    float tempRawAD = (tempRerata * 3.3) / 4096;
+    float tempCraw = ((tempRawAD - 0.400) / .0195);
+    regresitemp = (a * tempCraw) + (b * (pow(tempCraw, 2))) + c;
+    tempC = (tempCraw + regresitemp) * offsite1;
+    suhu = String(tempC, 1);
+    debug("tempC=");
+    debugln(tempC);
+    int windADunits = analogRead(OutPin);
+    float voltWind = (windADunits * 3.3) / 4096;
+    float adjustmentV = voltWind - ZeroWind_V;
+    if (adjustmentV < 0) {
+      adjustmentV = 0;
+    }
+    float tempPow = pow(tempC, 0.115);
+    float windMPH = pow(((adjustmentV / (3.038 * tempPow)) / 0.087), 3.009);  //rumus dari link kalibrasi
+    //float windMPH = pow((((float)windADunits - 264.0) / 85.6814), 3.36814);
+    float windMSraw = (windMPH * 0.44704);
+    regresiwind = (d * windMSraw) + (e * (pow(windMSraw, 2))) + f;
+    windMS = (windMSraw + regresiwind) * offsite2;
+    kecepatanUdara = String(windMS, 2);
+    debug("kecepatanUdara=");
+    debugln(kecepatanUdara);
     Serial.println("TASK 1 TAKE TIME = ");
     Serial.println(millis() - start);
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
   }
 }
 
@@ -248,33 +217,6 @@ void Task2code(void *pvParameters) {
     debug("Task2 running on core ");
     debugln(xPortGetCoreID());
     long start = millis();
-    //DateTime now = rtc.now();
-    //String jam = String(now.hour(), DEC);
-    //String menit = String(now.minute(), DEC);
-    //String waktu = jam + ":" + menit;
-    //t4.setText(waktu.c_str());
-    // Serial.write(0xff);
-    // Serial.write(0xff);
-    // Serial.write(0xff);
-    //debug(now.month(), DEC);
-    //debug("-");
-    //debug(now.year(), DEC);
-    //debug("-");
-    //debugln(daysOfTheWeek[now.dayOfTheWeek()]);
-    //String bulan = String(now.month(), DEC);
-    // String tanggal = String(now.dayOfTheWeek(), DEC);
-    // String hari = String(daysOfTheWeek[now.dayOfTheWeek()]);
-    // String tahun = String(now.year(), DEC);
-    // String tanggalfull = hari + ", " + tanggal + "/" + bulan + "/" + tahun;
-    // t5.setText(tanggalfull.c_str());
-    // Serial.write(0xff);
-    // Serial.write(0xff);
-    // Serial.write(0xff);
-    // yield();
-
-    va0.getValue(&resetlamp);
-    va1.getValue(&resethepa);
-    h0.getValue(&power);
     debugln(power);
     if (power >= 90) {
       acd.setPower(90);
@@ -282,9 +224,6 @@ void Task2code(void *pvParameters) {
     } else {
       acd.setPower(power - 10);
     }
-    bt0.getValue(&blow);
-    bt1.getValue(&lampTL);
-    bt2.getValue(&lamp);
     debugln(power);
     if (lamp == 1)  //When pressed dual state button dual_state =1
     {
@@ -310,7 +249,6 @@ void Task2code(void *pvParameters) {
       menitstop = String(menittimer, 0);
       detikstop = String(detiktimer, 0);
       waktustop = jamstop + ":" + menitstop + ":" + detikstop;
-      t2.setText(waktustop.c_str());
       logic = 1;
       if (jamtimer < 10) {
         debugln(miliDetiktimer);
@@ -365,7 +303,6 @@ void Task2code(void *pvParameters) {
       menitstop1 = String(menittimer1, 0);
       detikstop1 = String(detiktimer1, 0);
       waktustop1 = jamstop1 + ":" + menitstop1 + ":" + detikstop1;
-      t3.setText(waktustop1.c_str());
       logic1 = 1;
       if (jamtimer1 < 10) {
         debugln(miliDetiktimer1);
@@ -402,9 +339,39 @@ void Task2code(void *pvParameters) {
     }
     Serial.println("TASK 2 TAKE TIME = ");
     Serial.println(millis() - start);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
-
+void Task3code(void *pvParameters) {
+  for (;;) {
+    debug("Task3 running on core ");
+    debugln(xPortGetCoreID());
+    t1.setText(kecepatanUdara.c_str());
+    Serial.write(0xff);
+    Serial.write(0xff);
+    Serial.write(0xff);
+    t0.setText(suhu.c_str());
+    Serial.write(0xff);
+    Serial.write(0xff);
+    Serial.write(0xff);
+    t2.setText(waktustop.c_str());
+    Serial.write(0xff);
+    Serial.write(0xff);
+    Serial.write(0xff);
+    t3.setText(waktustop1.c_str());
+    Serial.write(0xff);
+    Serial.write(0xff);
+    Serial.write(0xff);
+    yield();
+    va0.getValue(&resetlamp);
+    va1.getValue(&resethepa);
+    h0.getValue(&power);
+    bt0.getValue(&blow);
+    bt1.getValue(&lampTL);
+    bt2.getValue(&lamp);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+  }
+}
 void loop(void) {
 }
 
@@ -474,97 +441,3 @@ void deleteFile(fs::FS &fs, const char *path) {
     debugln("− delete failed");
   }
 }
-//
-//void sendTofirebase(float tempC, float windMS) {
-//  WiFiClient client;
-//  HTTPClient http;
-//  String load = "{}";
-//  http.begin(client, linkdiawan);
-//  debugln(linkdiawan);
-//  String jsonStr = "";
-//  http.addHeader("Content-Type", "application/json");
-//  String isi = " {\"email\":\"" + email + "\",\"password\":\"" + pass + "\", \"userId\":\"" + userId + "\",\"idDevice\":\"" + idDevice + "\",\"value\":{\"data1\":" + suhu + ",\"data2\":" + kecepatanUdara + ",\"wifi\":" + qualwifi + "}}";
-//  debugln(isi);
-//  httpResponseCode = http.POST(isi);
-//  debug("HTTP Response code: ");
-//  debugln(httpResponseCode);
-//
-//  if (httpResponseCode != 200) {
-//    delay(500);
-//  } else if (httpResponseCode == 500) {
-//  } else if (httpResponseCode == -1 || httpResponseCode == -11) {
-//  } else {
-//    load = http.getString();
-//    debug(load);
-//    DynamicJsonDocument doc(1024);
-//    String input = load;
-//    deserializeJson(doc, input);
-//    JsonObject obj = doc.as<JsonObject>();
-//    offsite1 = obj["result"]["offsite"]["offsite_value_data1"].as<float>();
-//    offsite2 = obj["result"]["offsite"]["offsite_value_data2"].as<float>();
-//    debugln(offsite1);
-//    debugln(offsite2);
-//    last = obj["result"]["newresult"]["timestamp"].as<String>();
-//    name = obj["result"]["name"].as<String>();
-//    if (obj["result"]["restart"].as<int>() == 1) {
-//      ESP.restart();
-//    }
-//    if (obj["result"]["reset"].as<int>() == 1) {
-//      wifiManager.resetSettings();
-//      ESP.restart();
-//    }
-//    http.end();
-//  }
-//}
-//
-//void geturl() {
-//  WiFiClient client;
-//  HTTPClient http;
-//  String serverPath = serverName + "/" + idDevice;
-//  http.begin(client, serverPath.c_str());
-//  int httpResponseCode = http.GET();
-//  if (httpResponseCode > 0) {
-//    debug("HTTP Response code: ");
-//    debugln(httpResponseCode);
-//    String payload = http.getString();
-//    debugln(payload);
-//    DynamicJsonDocument doc(1024);
-//    String input = payload;
-//    deserializeJson(doc, input);
-//    JsonObject obj = doc.as<JsonObject>();
-//    linkdiawan = obj["url"]["push"].as<String>();
-//    offsite1 = obj["offsite"]["offsite_data1"].as<float>();
-//    offsite2 = obj["offsite"]["offsite_data2"].as<float>();
-//    a = obj["regression"]["data1"]["a"].as<float>();
-//    b = obj["regression"]["data1"]["b"].as<float>();
-//    c = obj["regression"]["data1"]["c"].as<float>();
-//    d = obj["regression"]["data4"]["a"].as<float>();
-//    e = obj["regression"]["data4"]["b"].as<float>();
-//    f = obj["regression"]["data4"]["c"].as<float>();
-//    name = obj["name"].as<String>();
-//    debug("urlGet ");
-//    debugln(linkdiawan);
-//  } else {
-//    debug("Error code: ");
-//    debugln(httpResponseCode);
-//  }
-//  http.end();
-//}
-//
-//void doWiFiManager() {
-//  if (portalRunning) {
-//    wifiManager.process();  // do processing
-//  }
-//  if (!portalRunning) {
-//    if (startAP) {
-//      debugln("Button Pressed, Starting Config Portal");
-//      wifiManager.setConfigPortalBlocking(false);
-//      wifiManager.startConfigPortal(node_ID);
-//    } else {
-//      debugln("Button Pressed, Starting Web Portal");
-//      wifiManager.startWebPortal();
-//    }
-//    portalRunning = true;
-//    startTime = millis();
-//  }
-//}
