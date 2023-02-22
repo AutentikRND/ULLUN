@@ -32,13 +32,14 @@
 RTC_DS3231 rtc;
 char daysOfTheWeek[7][12] = { "Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu" };
 String name;
-const int OutPin = 32;   // wind sensor analog pin  hooked up to Wind P sensor "OUT" pin
+const int OutPin = 5;   // wind sensor analog pin  hooked up to Wind P sensor "OUT" pin
 const int TempPin = 35;  // temp sesnsor analog pin hooked up to Wind P sensor "TMP" pin
 unsigned long previousMillis = 0;
 unsigned long previousMillis1 = 0;
-const int R1 = 33;  //This is the Arduino Pin that will control Relay #1
-const int R2 = 27;  //This is the Arduino Pin that will control Relay #2
-const int R3 = 23;  //This is the Arduino Pin that will control Relay #3
+const int R1 = 12;  //This is the Arduino Pin that will control Relay #1
+const int R2 = 13;  //This is the Arduino Pin that will control Relay #2
+const int R3 = 14;  //This is the Arduino Pin that will control Relay #3
+const int R4 = 15;  //This is the Arduino Pin that will control Relay #4
 int qualwifi = 0;
 int httpResponseCode = 200;
 float WindB;
@@ -92,8 +93,9 @@ uint32_t power = 0;
 uint32_t resethepa = 0;
 uint32_t resetlamp = 0;
 //Parameters
+const int act = 4;
 const int zeroCrossPin = 34;
-const int acdPin = 4;
+const int acdPin = 33;
 int MIN_POWER = 0;
 int MAX_POWER = 80;
 int POWER_STEP = 10;
@@ -144,6 +146,8 @@ void setup() {
   pinMode(R1, OUTPUT);
   pinMode(R2, OUTPUT);
   pinMode(R3, OUTPUT);
+  pinMode(R4, OUTPUT);
+  pinMode(act, OUTPUT);
   xTaskCreate(
     Task1code, /* Task function. */
     "Task1",   /* name of task. */
@@ -344,6 +348,7 @@ void Task2code(void *pvParameters) {
 }
 void Task3code(void *pvParameters) {
   for (;;) {
+    digitalWrite(act,HIGH);
     debug("Task3 running on core ");
     debugln(xPortGetCoreID());
     t1.setText(kecepatanUdara.c_str());
@@ -369,6 +374,7 @@ void Task3code(void *pvParameters) {
     bt0.getValue(&blow);
     bt1.getValue(&lampTL);
     bt2.getValue(&lamp);
+    digitalWrite(act,LOW);
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
